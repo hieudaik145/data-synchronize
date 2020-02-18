@@ -137,7 +137,6 @@ public class SynchronizeDataService {
      * @param infoTable
      * @param conn
      * @return
-     * @throws SQLException
      */
     private List<Map<String, Object>> getListDataInsertPreInsertFromTable(InfoTable infoTable, Connection conn) {
 

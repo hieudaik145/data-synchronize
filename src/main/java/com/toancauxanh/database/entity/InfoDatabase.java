@@ -7,6 +7,7 @@ import javax.persistence.EnumType;
 import javax.persistence.Enumerated;
 import javax.persistence.GeneratedValue;
 import javax.persistence.Id;
+import javax.persistence.Transient;
 
 import lombok.Data;
 
@@ -32,6 +33,7 @@ public class InfoDatabase {
     @Enumerated(EnumType.STRING)
     private DatabaseType typeDB;
     
+    @Transient
     private List<InfoTable> infoTables;
 
 }

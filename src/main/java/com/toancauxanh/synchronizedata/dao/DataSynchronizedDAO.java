@@ -13,6 +13,14 @@ import com.toancauxanh.database.entity.InfoTable;
 
 public class DataSynchronizedDAO {
 
+    /**
+     * Method batch insert data to database staging
+     * 
+     * @param datas Value insert to database
+     * @param queryString String
+     * @param infoTable InfoTable
+     * @param conn Connection
+     */
     public int batchInsertDataSourceToDataStagin(List<Map<String, Object>> datas, String queryString,
             InfoTable infoTable, Connection conn) {
 
