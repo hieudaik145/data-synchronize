@@ -2,14 +2,14 @@ package com.toancauxanh.database.service;
 
 import java.sql.Connection;
 
-import com.toancauxanh.common.dao.ConnectionDAO;
-import com.toancauxanh.database.entity.InfoDatabase;
+import com.toancauxanh.common.dao.ConnectionUtils;
+import com.toancauxanh.database.entity.InfoDatabaseDto;
 
 public class InfoDatabaseService {
 
-    public Connection getConnection(InfoDatabase infoDatabase) {
+    public Connection getConnection(InfoDatabaseDto infoDatabase) {
 
-        ConnectionDAO connectionDAO = new ConnectionDAO();
+        ConnectionUtils connectionDAO = new ConnectionUtils();
 
         return connectionDAO.getConnection(infoDatabase);
     }

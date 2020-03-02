@@ -8,7 +8,7 @@ import javax.persistence.Id;
 import lombok.Data;
 
 @Data
-public class InfoTable {
+public class InfoTableDto {
     
     @Id
     @GeneratedValue
@@ -18,5 +18,5 @@ public class InfoTable {
     
     private String tableName;
 
-    private List<InfoColumn> infoColumns;
+    private List<InfoColumnDto> infoColumns;
 }

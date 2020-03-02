@@ -1,25 +1,23 @@
 package com.toancauxanh.synchronizedata.service;
 
-import java.sql.Connection;
-import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import com.google.common.collect.Lists;
-import com.toancauxanh.common.Constant;
-import com.toancauxanh.common.dao.ConnectionDAO;
-import com.toancauxanh.database.entity.InfoColumn;
-import com.toancauxanh.database.entity.InfoDatabase;
-import com.toancauxanh.database.entity.InfoTable;
+import com.toancauxanh.database.common.DatabaseStrategy;
+import com.toancauxanh.database.common.MySQLDAO;
+import com.toancauxanh.database.common.OracleSQLDAO;
+import com.toancauxanh.database.common.SQLServerDAO;
+import com.toancauxanh.database.entity.DatabaseType;
+import com.toancauxanh.database.entity.InfoDatabaseDto;
+import com.toancauxanh.database.entity.InfoTableDto;
 import com.toancauxanh.synchronizedata.dao.DataSynchronizedDAO;
 
 public class SynchronizeDataService {
-
-    ConnectionDAO connectionDAO = new ConnectionDAO();
 
     DataSynchronizedDAO dataSynchronizedDAO = new DataSynchronizedDAO();
 
@@ -29,165 +27,92 @@ public class SynchronizeDataService {
      * @param infoDatabases
      * @throws SQLException
      */
-    public void synchronizeListDatabase(List<InfoDatabase> infoDatabases) throws SQLException {
+    public void synchronizeListDatabase(List<InfoDatabaseDto> infoDatabases) {
 
-        for (InfoDatabase infoDatabase : infoDatabases) {
+        for (InfoDatabaseDto infoDatabase : infoDatabases) {
             synchronizeDatabase(infoDatabase);
         }
 
     }
 
     /**
-     * Method synchronize database of database source to database staging
+     * Method perform synchronize database of database source to database staging
      * 
      * @param infoDatabase
-     * @throws SQLException
      */
-    public void synchronizeDatabase(InfoDatabase infoDatabase) {
+    public void synchronizeDatabase(InfoDatabaseDto infoDatabase) {
 
-        Connection connSourceData = connectionDAO.getConnection(infoDatabase);
+        DatabaseStrategy databaseStrategy = null;
 
-        // for each info table of info database and synchronize table
-        for (InfoTable infoTable : infoDatabase.getInfoTables()) {
-            synchronizeTable(connSourceData, infoTable);
+        // check database type and new 
+        if (infoDatabase.getTypeDB() == DatabaseType.MYSQL || infoDatabase.getTypeDB() == DatabaseType.MARIA_DB) {
+            databaseStrategy = new MySQLDAO();
+        } else if (infoDatabase.getTypeDB() == DatabaseType.MS_SQL_SERVER) {
+            databaseStrategy = new SQLServerDAO();
+        } else {
+            databaseStrategy = new OracleSQLDAO();
         }
-        // close connecting database source if not null
-        try {
-            connSourceData.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+        // find all info table anh info column
+        infoDatabase.setInfoTables(databaseStrategy.getInfoTables(infoDatabase));
 
-    }
+        // get all data
+        Map<InfoTableDto, List<Map<String, Object>>> dataDatabase = getAllDataOfListTable(infoDatabase);
 
-    /**
-     * Method synchronize table of database source to database staging
-     * 
-     * @param connSourceData
-     * @param infoTable
-     * @throws SQLException
-     */
-    private void synchronizeTable(Connection connSourceData, InfoTable infoTable) {
+        Set<InfoTableDto> keySet = dataDatabase.keySet();
 
-        // create connection to database staging
-        Connection connStaging = connectionDAO.getConnectionStaging();
+        for (InfoTableDto infoTableDto : keySet) {
 
-        // call get list data of table from database source target
-        List<Map<String, Object>> datas = getListDataInsertPreInsertFromTable(infoTable, connSourceData);
+            List<Map<String, Object>> datas = dataDatabase.get(infoTableDto);
 
-        // partition list data threshold 1000
-        List<List<Map<String, Object>>> parition = Lists.partition(datas, 1000);
+            List<List<Map<String, Object>>> data = Lists.partition(datas, 50000);
 
-        // call batch insert to database staging
-        for (List<Map<String, Object>> list : parition) {
-            dataSynchronizedDAO.batchInsertDataSourceToDataStagin(list, buildStringQueryInsert(infoTable), infoTable,
-                    connStaging);
-        }
-
-        // if connection staging not null close it
-        if (connStaging != null) {
-            try {
-                connStaging.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
+            // insert to database staging
+            data.forEach(x -> dataSynchronizedDAO.batchInsertToDataStaging(x, infoTableDto));
         }
     }
 
     /**
-     * Build query string insert to database staging
+     * Get all data of table
      * 
-     * @param infoTable
-     * @return stringQuery
-     */
-    private String buildStringQueryInsert(InfoTable infoTable) {
-
-        // Using string builder to create query insert string
-        StringBuilder stringBuilder = new StringBuilder();
-
-        stringBuilder.append("INSERT INTO " + infoTable.getTableName() + Constant.SPACE + "(");
-
-        for (InfoColumn infoColumn : infoTable.getInfoColumns()) {
-
-            if (infoTable.getInfoColumns().size() == infoTable.getInfoColumns().lastIndexOf(infoColumn)) {
-
-                stringBuilder.append(infoColumn.getColumnName() + ") VALUES (");
-            } else {
-                stringBuilder.append(infoColumn.getColumnName() + Constant.SPACE + Constant.COMMA);
-            }
-
-        }
-
-        for (int i = 0; i < infoTable.getInfoColumns().size(); i++) {
-            if (i == infoTable.getInfoColumns().size() - 1) {
-                stringBuilder.append(Constant.ASK + ")");
-            } else {
-                stringBuilder.append(Constant.ASK + Constant.COMMA);
-            }
-
-        }
-
-        return stringBuilder.toString();
-
-    }
-
-    /**
-     * Get List database from single table
-     * 
-     * @param infoTable
+     * @param infoTableDtos
      * @param conn
-     * @return
+     * @return Map<InfoTableDto, List<Map<String, Object>>> infotable key and datas
+     *         of info table
      */
-    private List<Map<String, Object>> getListDataInsertPreInsertFromTable(InfoTable infoTable, Connection conn) {
+    private Map<InfoTableDto, List<Map<String, Object>>> getAllDataOfListTable(InfoDatabaseDto infoDatabaseDto) {
 
-        // Using string builder to create query String
-        StringBuilder queryString = new StringBuilder("SELECT ");
+        Map<InfoTableDto, List<Map<String, Object>>> mapTableData = new HashMap<>();
 
-        for (InfoColumn column : infoTable.getInfoColumns()) {
+        for (InfoTableDto infoTableDto : infoDatabaseDto.getInfoTables()) {
+            List<Map<String, Object>> dataTable = dataSynchronizedDAO.getAllDataOfTable(infoTableDto, infoDatabaseDto);
+            mapTableData.put(infoTableDto, dataTable);
 
-            if (infoTable.getInfoColumns().size() == infoTable.getInfoColumns().lastIndexOf(column)) {
-                queryString.append(column.getColumnName() + Constant.SPACE + "FROM " + infoTable.getTableName());
-            } else {
-                queryString.append(column.getColumnName() + Constant.COMMA + Constant.SPACE);
-            }
         }
 
-        // call select data from source database
-        ResultSet rs = dataSynchronizedDAO.getResultSetFromDataSource(queryString.toString(), conn);
-
-        if (rs == null) {
-            return Collections.emptyList();
-        }
-
-        return buildListObjectPreInsertFromResultSet(rs, infoTable);
+        return mapTableData;
 
     }
-
+    
     /**
-     * Build list value for result set get from databases source
+     * Get all data of table condition date create
      * 
-     * @param resultSet
-     * @param infoTable
-     * @return List value insert to database
-     * @throws SQLException
+     * @param infoTableDtos
+     * @param conn
+     * @return Map<InfoTableDto, List<Map<String, Object>>> infotable key and datas
+     *         of info table
      */
-    private List<Map<String, Object>> buildListObjectPreInsertFromResultSet(ResultSet resultSet, InfoTable infoTable) {
+    public Map<InfoTableDto, List<Map<String, Object>>> getAllDataOfListTable(InfoDatabaseDto infoDatabaseDto, Date tuNgay, Date denNgay) {
 
-        List<Map<String, Object>> target = new ArrayList<>();
+        Map<InfoTableDto, List<Map<String, Object>>> mapTableData = new HashMap<>();
 
-        try {
-            while (resultSet.next()) {
+        for (InfoTableDto infoTableDto : infoDatabaseDto.getInfoTables()) {
+            List<Map<String, Object>> dataTable = dataSynchronizedDAO.getDataWithCondition(infoTableDto, infoDatabaseDto,tuNgay,denNgay);
+            mapTableData.put(infoTableDto, dataTable);
 
-                Map<String, Object> map = new HashMap<>();
-
-                for (InfoColumn infoColumn : infoTable.getInfoColumns()) {
-                    map.put(infoColumn.getColumnName(), resultSet.getObject(infoColumn.getColumnName()));
-                }
-                target.add(map);
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
-        return target;
+
+        return mapTableData;
+
     }
+    
 }

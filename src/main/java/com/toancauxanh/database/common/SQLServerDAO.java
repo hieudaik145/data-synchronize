@@ -7,11 +7,12 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.toancauxanh.database.entity.InfoColumn;
-import com.toancauxanh.database.entity.InfoDatabase;
-import com.toancauxanh.database.entity.InfoTable;
+import com.toancauxanh.common.dao.ConnectionUtils;
+import com.toancauxanh.database.entity.InfoColumnDto;
+import com.toancauxanh.database.entity.InfoDatabaseDto;
+import com.toancauxanh.database.entity.InfoTableDto;
 
-public class SQLServerDAO implements DatabaseDAOStragery {
+public class SQLServerDAO implements DatabaseStrategy {
 
     /**
      * Syntax of SQLServer database get list info tables from input info database
@@ -21,23 +22,25 @@ public class SQLServerDAO implements DatabaseDAOStragery {
      * @return List info Table of Database
      */
     @Override
-    public List<InfoTable> getInfoTables(InfoDatabase infoDatabase, Connection conn) {
+    public List<InfoTableDto> getInfoTables(InfoDatabaseDto infoDatabase) {
 
         String sql = "SELECT TABLE_CATALOG, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_CATALOG = ?";
 
-        List<InfoTable> infoTables = new ArrayList<>();
+        List<InfoTableDto> infoTables = new ArrayList<>();
 
+        Connection conn = null;
         PreparedStatement pstmt = null;
         ResultSet rs = null;
 
         try {
+            conn = ConnectionUtils.getConnection(infoDatabase);
             pstmt = conn.prepareStatement(sql);
             pstmt.setString(1, infoDatabase.getDatabaseName());
             rs = pstmt.executeQuery();
             while (rs.next()) {
-                InfoTable infoTable = new InfoTable();
+                InfoTableDto infoTable = new InfoTableDto();
 
-                infoTable.setTableSchema(rs.getString("TABLE_SCHEMA"));
+                infoTable.setTableSchema(rs.getString("TABLE_CATALOG"));
                 infoTable.setTableName(rs.getString("TABLE_NAME"));
 
                 // call method get info column from info table
@@ -62,6 +65,13 @@ public class SQLServerDAO implements DatabaseDAOStragery {
                     e.printStackTrace();
                 }
             }
+            if (conn != null) {
+                try {
+                    conn.close();
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
+            }
         }
 
         return infoTables;
@@ -75,14 +85,14 @@ public class SQLServerDAO implements DatabaseDAOStragery {
      * @return List info columns of Table
      */
     @Override
-    public List<InfoColumn> getInfoColumns(InfoTable infoTable, Connection conn) {
+    public List<InfoColumnDto> getInfoColumns(InfoTableDto infoTable, Connection conn) {
 
-        String sql = "SELECT TABLE_CATALOG, TABLE_NAME, COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_CATALOG  = ? and TABLE_NAME = ?";
+        String sql = "SELECT TABLE_CATALOG, TABLE_NAME, COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_CATALOG  = ? and TABLE_NAME = ?";
 
         PreparedStatement pstmt = null;
         ResultSet rs = null;
 
-        List<InfoColumn> infoColumns = new ArrayList<>();
+        List<InfoColumnDto> infoColumns = new ArrayList<>();
         try {
             pstmt = conn.prepareStatement(sql);
 
@@ -92,11 +102,10 @@ public class SQLServerDAO implements DatabaseDAOStragery {
             rs = pstmt.executeQuery();
             while (rs.next()) {
 
-                InfoColumn infoColumn = new InfoColumn();
+                InfoColumnDto infoColumn = new InfoColumnDto();
                 infoColumn.setTableSchema(rs.getString("TABLE_CATALOG"));
                 infoColumn.setTableName(rs.getString("TABLE_NAME"));
                 infoColumn.setColumnName(rs.getString("COLUMN_NAME"));
-                infoColumn.setDataType(rs.getString("DATA_TYPE"));
                 infoColumns.add(infoColumn);
 
             }

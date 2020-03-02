@@ -14,7 +14,7 @@ import lombok.Data;
 
 @Data
 @Entity
-public class InfoDatabase {
+public class InfoDatabaseDto {
     
     @Id
     @GeneratedValue
@@ -30,10 +30,12 @@ public class InfoDatabase {
     
     private String password;
     
+    private String schemaName;
+    
     @Enumerated(EnumType.STRING)
     private DatabaseType typeDB;
     
     @Transient
-    private List<InfoTable> infoTables;
+    private List<InfoTableDto> infoTables;
 
 }

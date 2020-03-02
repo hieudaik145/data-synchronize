@@ -9,7 +9,7 @@ import lombok.Data;
  *
  */
 @Data
-public class InfoColumn {
+public class InfoColumnDto {
     
     @Id
     @GeneratedValue
@@ -20,7 +20,5 @@ public class InfoColumn {
     private String tableName;
     
     private String columnName;
-    
-    private String dataType;
     
 }

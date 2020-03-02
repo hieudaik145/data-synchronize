@@ -7,11 +7,12 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.toancauxanh.database.entity.InfoColumn;
-import com.toancauxanh.database.entity.InfoDatabase;
-import com.toancauxanh.database.entity.InfoTable;
+import com.toancauxanh.common.dao.ConnectionUtils;
+import com.toancauxanh.database.entity.InfoColumnDto;
+import com.toancauxanh.database.entity.InfoDatabaseDto;
+import com.toancauxanh.database.entity.InfoTableDto;
 
-public class MySQLDAO implements DatabaseDAOStragery {
+public class MySQLDAO implements DatabaseStrategy {
 
     /**
      * Syntax of MYSQL database get list info tables from input info database
@@ -20,24 +21,25 @@ public class MySQLDAO implements DatabaseDAOStragery {
      * @param conn
      * @return List info Table of Database
      */
-    @Override
-    public List<InfoTable> getInfoTables(InfoDatabase infoDatabase, Connection conn) {
+    public List<InfoTableDto> getInfoTables(InfoDatabaseDto infoDatabase) {
 
         String sql = "SELECT TABLE_SCHEMA, TABLE_NAME FROM information_schema.TABLES where TABLE_SCHEMA = ?";
 
-        List<InfoTable> infoTables = new ArrayList<>();
+        List<InfoTableDto> infoTables = new ArrayList<>();
 
+        Connection conn = null;
         PreparedStatement pstmt = null;
         ResultSet rs = null;
 
         try {
+            conn = ConnectionUtils.getConnection(infoDatabase);
             pstmt = conn.prepareStatement(sql);
             pstmt.setString(1, infoDatabase.getDatabaseName());
 
             rs = pstmt.executeQuery();
 
             while (rs.next()) {
-                InfoTable infoTable = new InfoTable();
+                InfoTableDto infoTable = new InfoTableDto();
 
                 infoTable.setTableSchema(rs.getString("TABLE_SCHEMA"));
                 infoTable.setTableName(rs.getString("TABLE_NAME"));
@@ -63,6 +65,13 @@ public class MySQLDAO implements DatabaseDAOStragery {
                     e.printStackTrace();
                 }
             }
+            if (conn != null) {
+                try {
+                    conn.close();
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
+            }
         }
 
         return infoTables;
@@ -76,14 +85,14 @@ public class MySQLDAO implements DatabaseDAOStragery {
      * @return List info columns of Table
      */
     @Override
-    public List<InfoColumn> getInfoColumns(InfoTable infoTable, Connection conn) {
+    public List<InfoColumnDto> getInfoColumns(InfoTableDto infoTable, Connection conn) {
 
-        String sql = "SELECT TABLE_NAME, TABLE_SCHEMA, COLUMN_NAME, DATA_TYPE FROM information_schema.`COLUMNS` c WHERE TABLE_SCHEMA  = ? and TABLE_NAME = ?";
+        String sql = "SELECT TABLE_NAME, TABLE_SCHEMA, COLUMN_NAME, COLUMN_TYPE FROM information_schema.`COLUMNS` c WHERE TABLE_SCHEMA  = ? and TABLE_NAME = ?";
 
         PreparedStatement pstmt = null;
         ResultSet rs = null;
 
-        List<InfoColumn> infoColumns = new ArrayList<>();
+        List<InfoColumnDto> infoColumns = new ArrayList<>();
         try {
             pstmt = conn.prepareStatement(sql);
 
@@ -93,12 +102,11 @@ public class MySQLDAO implements DatabaseDAOStragery {
             rs = pstmt.executeQuery();
             while (rs.next()) {
 
-                InfoColumn infoColumn = new InfoColumn();
+                InfoColumnDto infoColumn = new InfoColumnDto();
 
                 infoColumn.setTableName(rs.getString("TABLE_NAME"));
                 infoColumn.setTableSchema(rs.getString("TABLE_SCHEMA"));
                 infoColumn.setColumnName(rs.getString("COLUMN_NAME"));
-                infoColumn.setDataType(rs.getString("DATA_TYPE"));
                 infoColumns.add(infoColumn);
 
             }
